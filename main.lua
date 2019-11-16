@@ -1,4 +1,5 @@
-PACKET_UPDATE_TIME = 0.5 -- seconds
+PACKET_UPDATE_TIME = 0.2 -- seconds
+PACKET_SEND_TIME = 1.0
 
 function love.load()
    machine_textures = {
@@ -18,6 +19,7 @@ function love.load()
    destination = nil
 
    timer = 0
+   send_timer = 0
 
    math.randomseed(os.time())
 
@@ -27,14 +29,6 @@ function love.load()
    packets = {} -- { {sender, destination, edge={from, to}, progress (0->weight), dead? } }
    drops = 0
    drops_per_second = 0
-
-   packets[1] = {
-      sender = 1,
-      destination = 5,
-      edge = {from=1, to=2},
-      progress = 0,
-      dead = false,
-   }
 
    bounds = {
       x_min = 50,
@@ -51,6 +45,8 @@ function love.load()
    for i = 1, 5 do
       add_machine()
    end
+
+   print(#packets)
 
    love.window.setMode(800, 600)
    
@@ -157,11 +153,16 @@ end
 
 function update()
    timer = timer + love.timer.getAverageDelta()
+   send_timer = send_timer + love.timer.getAverageDelta()
 
    if timer > PACKET_UPDATE_TIME then
       timer = 0
-      drops_per_second = 0
       update_packets()
+   end
+
+   if send_timer > PACKET_SEND_TIME then
+      send_timer = 0
+      spawn_packet()
    end
    
    if love.keyboard.isDown("left") then cam.x = cam.x - 2 end
@@ -243,6 +244,21 @@ function add_machine()
 	    table.insert(connections, {a=#machines, b=o, weight=math.random(2, 9)})
 	 end
       end
+   end
+
+   local conns = list_connections(#machines)
+   for _, c in ipairs(conns) do
+      table.insert(routes, {
+		      from = #machines,
+		      to = c,
+		      via = c,
+      })
+
+      table.insert(routes, {
+		      from = c,
+		      to = #machines,
+		      via = #machines,
+      })
    end
 end
 
@@ -438,4 +454,35 @@ function next_hop(current, destination)
    end
 
    return nil
+end
+
+function spawn_packet()
+   local sender = math.random(1, #machines)
+   local destination = math.random(1, #machines)
+
+   while sender == destination do
+      destination = math.random(1, #machines)
+   end
+
+   send_packet(sender, destination)
+end
+
+function send_packet(from, to)
+   packet = {
+      sender = from,
+      destination = to,
+      edge = {from = from, to = nil},
+      progress = 0,
+      dead = false,
+   }
+
+   local next = next_hop(from, to)
+   if next == nil then
+      drops = drops + 1
+      drops_per_second = drops_per_second + 1
+      return
+   end
+
+   packet.edge.to = next
+   table.insert(packets, packet)
 end
