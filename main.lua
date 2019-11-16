@@ -2,14 +2,21 @@ function love.load()
    machine_textures = {
       love.graphics.newImage("assets/machine1.png"),
       love.graphics.newImage("assets/machine2.png"),
+      love.graphics.newImage("assets/machine3.png"),
    }
 
+   sel_texture = love.graphics.newImage("assets/border.png")
+
    digit_font = love.graphics.newImageFont("assets/digits.png", "0123456789")
+
+   selection = nil
+   destination = nil
 
    math.randomseed(os.time())
 
    machines = {}
    connections = {}
+   routes = {} -- { {from, to, via}, ... }
 
    bounds = {
       x_min = 50,
@@ -69,8 +76,20 @@ function love.draw()
    
    for i, v in ipairs(machines) do
       love.graphics.draw(machine_textures[v.texture], v.x, v.y)
-      love.graphics.setFont(love.graphics.newFont(12))
-      love.graphics.print(tostring(i), v.x, v.y)
+      -- love.graphics.setFont(love.graphics.newFont(12))
+      -- love.graphics.print(tostring(i), v.x, v.y)
+   end
+
+   if selection ~= nil then
+      local sel = machines[selection]
+      love.graphics.setColor(0.1, 0.5, 0.9, 1.0)
+      love.graphics.draw(sel_texture, sel.x, sel.y)
+   end
+
+   if destination ~= nil then
+      local dest = machines[destination]
+      love.graphics.setColor(0.9, 0.3, 0.2, 1.0)
+      love.graphics.draw(sel_texture, dest.x, dest.y)
    end
       
    love.graphics.pop()
@@ -222,4 +241,50 @@ function intersect(r, l)
    r_dist = -(-l.dy*l.sx + l.dy*r.sx + l.dx*l.sy - l.dx*r.sy) / (r.dx*l.dy - l.dx*r.dy)
 
    return l_dist > 0 and l_dist < 1 and r_dist > 0 and r_dist < 1
+end
+
+function love.mousepressed(x, y, button)
+   local m = machine_at(x, y)
+   
+   if button == 1 then
+      if m == nil then
+	 selection = nil
+	 destination = nil
+      elseif selection ~= nil and destination ~= nil then
+	 table.insert(routes, {
+			 from=selection,
+			 to=destination,
+			 via=m,
+	 })
+
+	 selection = nil
+	 destination = nil
+      else
+	 selection = m
+	 destination = nil
+      end
+   end
+end
+
+function love.mousereleased(x, y, button)
+   if button == 1 and selection ~= nil then
+      local other = machine_at(x, y)
+
+      if other ~= selection then
+	 destination = other
+      end
+   end
+end
+
+function machine_at(x, y)
+   local tx = x/2 + cam.x
+   local ty = y/2 + cam.y
+
+   for i, machine in ipairs(machines) do
+      if tx > machine.x and tx < machine.x + 48 and ty > machine.y and ty < machine.y + 48 then
+	 return i
+      end
+   end
+
+   return nil
 end
