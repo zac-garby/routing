@@ -250,7 +250,8 @@ function love.mousepressed(x, y, button)
       if m == nil then
 	 selection = nil
 	 destination = nil
-      elseif selection ~= nil and destination ~= nil then
+      elseif selection ~= nil and destination ~= nil and connected_to(selection, m) then
+	 print("adding route from " .. selection .. " to " .. destination)
 	 table.insert(routes, {
 			 from=selection,
 			 to=destination,
@@ -287,4 +288,28 @@ function machine_at(x, y)
    end
 
    return nil
+end
+
+function list_connections(x)
+   local c = {}
+
+   for _, conn in ipairs(connections) do
+      if conn.a == x then
+	 table.insert(c, conn.b)
+      elseif conn.b == x then
+	 table.insert(c, conn.a)
+      end
+   end
+
+   return c
+end
+
+function connected_to(a, b)
+   for _, conn in ipairs(connections) do
+      if (conn.a == a and conn.b == b) or (conn.a == b and conn.b == a) then
+	 return true
+      end
+   end
+
+   return false
 end
