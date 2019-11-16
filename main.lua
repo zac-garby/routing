@@ -10,7 +10,7 @@ function love.load()
    sel_texture = love.graphics.newImage("assets/border.png")
    packet_texture = love.graphics.newImage("assets/packet.png")
 
-   digit_font = love.graphics.newImageFont("assets/digits.png", "0123456789")
+   digit_font = love.graphics.newImageFont("assets/digits.png", "0123456789ds ")
 
    packet_texture:setFilter("nearest", "nearest")
    
@@ -25,6 +25,16 @@ function love.load()
    connections = {}
    routes = {} -- { {from, to, via}, ... }
    packets = {} -- { {sender, destination, edge={from, to}, progress (0->weight), dead? } }
+   drops = 0
+   drops_per_second = 0
+
+   packets[1] = {
+      sender = 1,
+      destination = 5,
+      edge = {from=1, to=2},
+      progress = 0,
+      dead = false,
+   }
 
    bounds = {
       x_min = 50,
@@ -94,7 +104,7 @@ function love.draw()
       if not p.dead then
 	 local pos = packet_position(p)
 
-	 if p.progress == 0 then
+	 if p.progress == 0 or p.progress == edge_weight(p.edge.from, p.edge.to) then
 	    love.graphics.draw(packet_texture, pos.x - 4, pos.y - 4, -0.2, 2, 2)
 	 else
 	    love.graphics.draw(packet_texture, pos.x, pos.y)
@@ -120,10 +130,14 @@ function love.draw()
    love.graphics.clear()
 
    love.graphics.setColor(0.225, 0.225, 0.225, 1.0)
-   love.graphics.rectangle("fill", 0, 0, 400, 16)
+   love.graphics.rectangle("fill", 0, 0, 400, 13)
 
    love.graphics.setColor(0.4, 0.4, 0.4, 1.0)
-   love.graphics.rectangle("fill", 0, 15, 400, 1)
+   love.graphics.rectangle("fill", 0, 12, 400, 1)
+
+   love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
+   love.graphics.setFont(digit_font)
+   love.graphics.print("d " .. drops .. "  s " .. drops_per_second, 1, 1)
 
    love.graphics.setCanvas()
 
@@ -146,6 +160,7 @@ function update()
 
    if timer > PACKET_UPDATE_TIME then
       timer = 0
+      drops_per_second = 0
       update_packets()
    end
    
@@ -206,7 +221,7 @@ function add_machine()
 	 end
       end
 
-      table.insert(connections, {a=#machines, b=closest, weight=math.random(1, 9)})
+      table.insert(connections, {a=#machines, b=closest, weight=math.random(2, 9)})
    end
 
    if #machines > 2 then
@@ -225,7 +240,7 @@ function add_machine()
 	 local d = (this.x-other.x)^2 + (this.y-other.y)^2
 
 	 if d < 100^2 and not conn_would_overlap(this, other) then
-	    table.insert(connections, {a=#machines, b=o, weight=math.random(1, 9)})
+	    table.insert(connections, {a=#machines, b=o, weight=math.random(2, 9)})
 	 end
       end
    end
@@ -382,7 +397,9 @@ function update_packets()
 	    else
 	       local next = next_hop(packet.edge.to, packet.destination)
 	       if next == nil then
-		  -- drop packet
+		  packet.dead = true
+		  drops = drops + 1
+		  drops_per_second = drops_per_second + 1
 	       else
 		  packet.edge.from = packet.edge.to
 		  packet.edge.to = next
@@ -393,14 +410,28 @@ function update_packets()
 	 packet.progress = packet.progress + 1
       end
    end
+
+   remove_dead_packets()
 end
 
 function remove_dead_packets()
-   
+   local done = false
+
+   while not done do
+      done = true
+      
+      for i, packet in ipairs(packets) do
+	 if packet.dead then
+	    table.remove(packets, i)
+	    done = false
+	    break
+	 end
+      end
+   end
 end
 
 function next_hop(current, destination)
-   for _, route in routes do
+   for _, route in ipairs(routes) do
       if route.from == current and route.to == destination then
 	 return route.via
       end
