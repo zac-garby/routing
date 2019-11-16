@@ -1,3 +1,5 @@
+PACKET_UPDATE_TIME = 0.5 -- seconds
+
 function love.load()
    machine_textures = {
       love.graphics.newImage("assets/machine1.png"),
@@ -6,17 +8,23 @@ function love.load()
    }
 
    sel_texture = love.graphics.newImage("assets/border.png")
+   packet_texture = love.graphics.newImage("assets/packet.png")
 
    digit_font = love.graphics.newImageFont("assets/digits.png", "0123456789")
 
+   packet_texture:setFilter("nearest", "nearest")
+   
    selection = nil
    destination = nil
+
+   timer = 0
 
    math.randomseed(os.time())
 
    machines = {}
    connections = {}
    routes = {} -- { {from, to, via}, ... }
+   packets = {} -- { {sender, destination, edge={from, to}, progress (0->weight), dead? } }
 
    bounds = {
       x_min = 50,
@@ -45,8 +53,10 @@ end
 
 function love.draw()
    update()
+
+   love.graphics.clear()
    
-   love.graphics.push("all")
+   love.graphics.push()
    love.graphics.translate(math.floor(-cam.x), math.floor(-cam.y))
    
    love.graphics.setCanvas(canvas)
@@ -80,6 +90,18 @@ function love.draw()
       -- love.graphics.print(tostring(i), v.x, v.y)
    end
 
+   for _, p in ipairs(packets) do
+      if not p.dead then
+	 local pos = packet_position(p)
+
+	 if p.progress == 0 then
+	    love.graphics.draw(packet_texture, pos.x - 4, pos.y - 4, -0.2, 2, 2)
+	 else
+	    love.graphics.draw(packet_texture, pos.x, pos.y)
+	 end
+      end
+   end
+
    if selection ~= nil then
       local sel = machines[selection]
       love.graphics.setColor(0.1, 0.5, 0.9, 1.0)
@@ -101,7 +123,7 @@ function love.draw()
    love.graphics.rectangle("fill", 0, 0, 400, 16)
 
    love.graphics.setColor(0.4, 0.4, 0.4, 1.0)
-   love.graphics.rectangle("fill", 0, 14, 400, 2)
+   love.graphics.rectangle("fill", 0, 15, 400, 1)
 
    love.graphics.setCanvas()
 
@@ -109,9 +131,24 @@ function love.draw()
 
    love.graphics.draw(canvas, 0, 0, 0, 2, 2)
    love.graphics.draw(infobar, 0, 0, 0, 2, 2)
+
+   -- local stats = love.graphics.getStats()
+   -- print("drawcalls: " .. stats.drawcalls)
+   -- print("canvasswitches: " .. stats.canvasswitches)
+   -- print("tex mem: " .. stats.texturememory)
+   -- print("images: " .. stats.images)
+   -- print("canvases: " .. stats.canvases)
+   -- print("fonts: " .. stats.fonts)
 end
 
 function update()
+   timer = timer + love.timer.getAverageDelta()
+
+   if timer > PACKET_UPDATE_TIME then
+      timer = 0
+      update_packets()
+   end
+   
    if love.keyboard.isDown("left") then cam.x = cam.x - 2 end
    if love.keyboard.isDown("right") then cam.x = cam.x + 2 end
    if love.keyboard.isDown("up") then cam.y = cam.y - 2 end
@@ -312,4 +349,62 @@ function connected_to(a, b)
    end
 
    return false
+end
+
+function edge_weight(a, b)
+   for _, conn in ipairs(connections) do
+      if (conn.a == a and conn.b == b) or (conn.a == b and conn.b == a) then
+	 return conn.weight
+      end
+   end
+end
+
+function packet_position(packet)
+   local from = machines[packet.edge.from]
+   local to = machines[packet.edge.to]
+   local weight = edge_weight(packet.edge.from, packet.edge.to)
+
+   local x_step = math.floor((to.x - from.x) / weight)
+   local y_step = math.floor((to.y - from.y) / weight)
+
+   return {
+      x = from.x + 24 + x_step * packet.progress - 6,
+      y = from.y + 24 + y_step * packet.progress - 6,
+   }
+end
+
+function update_packets()
+   for i, packet in ipairs(packets) do
+      if not packet.dead then	 
+	 if packet.progress == edge_weight(packet.edge.from, packet.edge.to) then
+	    if packet.edge.to == packet.destination then
+	       packet.dead = true
+	    else
+	       local next = next_hop(packet.edge.to, packet.destination)
+	       if next == nil then
+		  -- drop packet
+	       else
+		  packet.edge.from = packet.edge.to
+		  packet.edge.to = next
+	       end
+	    end
+	 end
+
+	 packet.progress = packet.progress + 1
+      end
+   end
+end
+
+function remove_dead_packets()
+   
+end
+
+function next_hop(current, destination)
+   for _, route in routes do
+      if route.from == current and route.to == destination then
+	 return route.via
+      end
+   end
+
+   return nil
 end
