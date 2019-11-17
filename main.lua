@@ -1,6 +1,8 @@
 PACKET_UPDATE_TIME = 0.2 -- seconds
 PACKET_SEND_TIME = 4.0
-MACHINE_SPAWN_TIME = 20.0
+MACHINE_SPAWN_TIME = 25.1523
+CONN_MODIFY_TIME = 30.32617
+MAX_MACHINES = 16
 
 function love.load()
    machine_textures = {
@@ -24,6 +26,7 @@ function love.load()
    send_timer = 0
    second_timer = 0
    machine_timer = 0
+   conn_timer = 0
 
    math.randomseed(os.time())
 
@@ -46,6 +49,7 @@ function love.load()
       y = 0,
    }
    
+   add_machine()
    add_machine()
    add_machine()
 
@@ -163,6 +167,7 @@ function update()
    send_timer = send_timer + love.timer.getAverageDelta()
    second_timer = second_timer + love.timer.getAverageDelta()
    machine_timer = machine_timer + love.timer.getAverageDelta()
+   conn_timer = conn_timer + love.timer.getAverageDelta()
 
    if timer > PACKET_UPDATE_TIME then
       timer = 0
@@ -179,9 +184,17 @@ function update()
       drops_per_second = 0
    end
 
-   if machine_timer  > MACHINE_SPAWN_TIME then
+   if machine_timer > MACHINE_SPAWN_TIME then
       machine_timer = 0
-      add_machine()
+
+      if #machines < MAX_MACHINES then
+	 add_machine()
+      end
+   end
+
+   if conn_timer > CONN_MODIFY_TIME then
+      conn_timer = 0
+      modify_connections()
    end
    
    if love.keyboard.isDown("left") then cam.x = cam.x - 2 end
@@ -212,7 +225,7 @@ function add_machine()
 
       valid = true
       for _, m in ipairs(machines) do
-	 if (m.x-x)^2 + (m.y-y)^2 < 100^2 then
+	 if (m.x-x)^2 + (m.y-y)^2 < 75^2 then
 	    valid = false
 	 end
       end
@@ -515,4 +528,96 @@ function send_packet(from, to)
 
    packet.edge.to = next
    table.insert(packets, packet)
+end
+
+function modify_connections()
+   if math.random() < 0.85 then
+      add_connection()
+   else
+      print("sever!")
+      sever_connection()
+   end
+end
+
+function add_connection()
+   local a = math.random(1, #machines)
+   local b = math.random(1, #machines)
+   local tries = 0
+   
+   while tries < 100 and (a == b or conn_exists(a, b) or conn_would_overlap(machines[a], machines[b]) or (machines[b].x-machines[a].x)^2 + (machines[b].y-machines[b].x)^2 > 100^2) do
+      a = math.random(1, #machines)
+      b = math.random(1, #machines)
+      tries = tries + 1
+   end
+
+   if tries < 100 then
+      table.insert(connections, {
+		      a = a,
+		      b = b,
+		      weight = math.random(2, 9),
+      })
+   end
+end
+
+function sever_connection()
+   local valid = false
+   local tries = 0
+
+   while not valid and tries < 50 do
+      tries = tries + 1
+      print(tries)
+      
+      local i = math.random(1, #connections)
+
+      if not edge_has_packet(i) then
+	 local conn = connections[i]
+	 
+	 table.remove(connections, i)
+	 
+	 if is_connected() then
+	    valid = true
+	 else
+	    table.insert(connections, conn)
+	 end
+      end
+   end
+end
+
+function is_connected()
+   local nodes = {}
+   local stack = {1}
+
+   while #stack > 0 do
+      local top = stack[#stack]
+      table.remove(stack)
+      table.insert(nodes, top)
+
+      for _, o in ipairs(list_connections(top)) do
+	 if not table.contains(nodes, o) and not table.contains(stack, o) then
+	    table.insert(stack, o)
+	 end
+      end
+   end
+
+   return #nodes == #machines
+end
+
+function table.contains(table, element)
+   for _, value in pairs(table) do
+      if value == element then
+	 return true
+      end
+   end
+   
+   return false
+end
+
+function edge_has_packet(c)
+   for _, p in packets do
+      if p.edge.from == connections[c].a and p.edge.to == connections[c].b then
+	 return true
+      end
+   end
+   
+   return false
 end
