@@ -1,5 +1,6 @@
-PACKET_UPDATE_TIME = 1.0 -- seconds
-PACKET_SEND_TIME = 1.5
+PACKET_UPDATE_TIME = 0.2 -- seconds
+PACKET_SEND_TIME = 4.0
+MACHINE_SPAWN_TIME = 20.0
 
 function love.load()
    machine_textures = {
@@ -10,6 +11,7 @@ function love.load()
 
    sel_texture = love.graphics.newImage("assets/border.png")
    packet_texture = love.graphics.newImage("assets/packet.png")
+   alert_texture = love.graphics.newImage("assets/alert.png")
 
    digit_font = love.graphics.newImageFont("assets/digits.png", "0123456789ds ")
 
@@ -21,6 +23,7 @@ function love.load()
    timer = 0
    send_timer = 0
    second_timer = 0
+   machine_timer = 0
 
    math.randomseed(os.time())
 
@@ -32,10 +35,10 @@ function love.load()
    drops_per_second = 0
 
    bounds = {
-      x_min = 50,
-      x_max = 350,
-      y_min = 50,
-      y_max = 250,
+      x_min = 150,
+      x_max = 250,
+      y_min = 120,
+      y_max = 180,
    }
    
    cam = {
@@ -43,9 +46,8 @@ function love.load()
       y = 0,
    }
    
-   for i = 1, 5 do
-      add_machine()
-   end
+   add_machine()
+   add_machine()
 
    print(#packets)
 
@@ -90,9 +92,13 @@ function love.draw()
    end
 
    love.graphics.setColor(1.0, 1.0, 1.0, 1.0)
-   
+
    for i, v in ipairs(machines) do
       love.graphics.draw(machine_textures[v.texture], v.x, v.y)
+      
+      if v.alert then
+	 love.graphics.draw(alert_texture, v.x, v.y)
+      end
       -- love.graphics.setFont(love.graphics.newFont(12))
       -- love.graphics.print(tostring(i), v.x, v.y)
    end
@@ -156,6 +162,7 @@ function update()
    timer = timer + love.timer.getAverageDelta()
    send_timer = send_timer + love.timer.getAverageDelta()
    second_timer = second_timer + love.timer.getAverageDelta()
+   machine_timer = machine_timer + love.timer.getAverageDelta()
 
    if timer > PACKET_UPDATE_TIME then
       timer = 0
@@ -170,6 +177,11 @@ function update()
    if second_timer > 1 then
       second_timer = 0
       drops_per_second = 0
+   end
+
+   if machine_timer  > MACHINE_SPAWN_TIME then
+      machine_timer = 0
+      add_machine()
    end
    
    if love.keyboard.isDown("left") then cam.x = cam.x - 2 end
@@ -210,6 +222,7 @@ function add_machine()
 		   x = x,
 		   y = y,
 		   texture = math.random(1, #machine_textures),
+		   alert = false,
    })
 
    local this = machines[#machines]
@@ -333,6 +346,8 @@ function love.mousepressed(x, y, button)
 			 via=m,
 	 })
 
+	 machines[selection].alert = false
+	 
 	 selection = nil
 	 destination = nil
       else
@@ -427,6 +442,7 @@ function update_packets()
 	       local next = next_hop(packet.edge.to, packet.destination)
 	       if next == nil then
 		  packet.dead = true
+		  machines[packet.edge.to].alert = true
 		  drops = drops + 1
 		  drops_per_second = drops_per_second + 1
 	       else
@@ -493,6 +509,7 @@ function send_packet(from, to)
    if next == nil then
       drops = drops + 1
       drops_per_second = drops_per_second + 1
+      machines[from].alert = true
       return
    end
 
