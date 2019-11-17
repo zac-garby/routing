@@ -613,7 +613,7 @@ function table.contains(table, element)
 end
 
 function edge_has_packet(c)
-   for _, p in packets do
+   for _, p in ipairs(packets) do
       if p.edge.from == connections[c].a and p.edge.to == connections[c].b then
 	 return true
       end
