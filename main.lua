@@ -442,10 +442,17 @@ function packet_position(packet)
    local from = machines[packet.edge.from]
    local to = machines[packet.edge.to]
    local weight = edge_weight(packet.edge.from, packet.edge.to)
-
-   local x_step = math.floor((to.x - from.x) / weight)
-   local y_step = math.floor((to.y - from.y) / weight)
-
+   local x_step
+   local y_step
+   
+   if weight == nil then
+      x_step = -99999
+      y_step = -99999
+   else
+      x_step = math.floor((to.x - from.x) / weight)
+      y_step = math.floor((to.y - from.y) / weight)
+   end
+      
    local interp = timer / PACKET_UPDATE_TIME - 1
    if packet.progress == 0 then
       interp = 0

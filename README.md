@@ -2,6 +2,8 @@
 
 A game about building routing tables.
 
+![](assets/screenshot.png)
+
 ## Controls
 
 To add an entry to a machine's routing table, drag from that machine to the destination and then click on a machine adjacent to the first one that packets should be routed via.
