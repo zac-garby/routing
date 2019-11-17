@@ -11,12 +11,16 @@ function love.load()
       love.graphics.newImage("assets/machine3.png"),
    }
 
+   playing = true
    sel_texture = love.graphics.newImage("assets/border.png")
    packet_texture = love.graphics.newImage("assets/packet.png")
    alert_texture = love.graphics.newImage("assets/alert.png")
 
    digit_font = love.graphics.newImageFont("assets/digits.png", "0123456789ds ")
 
+   gameover_texture = love.graphics.newImage("assets/gameover.png")
+
+   gameover_texture:setFilter("nearest", "nearest")
    packet_texture:setFilter("nearest", "nearest")
    
    selection = nil
@@ -65,6 +69,11 @@ function love.load()
 end
 
 function love.draw()
+   if not playing then
+      love.graphics.draw(gameover_texture, 0, 0, 0, 8, 8)
+      return
+   end
+   
    update()
 
    love.graphics.clear()
@@ -168,7 +177,7 @@ function update()
    second_timer = second_timer + love.timer.getAverageDelta()
    machine_timer = machine_timer + love.timer.getAverageDelta()
    conn_timer = conn_timer + love.timer.getAverageDelta()
-
+   
    if timer > PACKET_UPDATE_TIME then
       timer = 0
       update_packets()
@@ -201,6 +210,10 @@ function update()
    if love.keyboard.isDown("right") then cam.x = cam.x + 2 end
    if love.keyboard.isDown("up") then cam.y = cam.y - 2 end
    if love.keyboard.isDown("down") then cam.y = cam.y + 2 end
+
+   if drops >= 20 then
+      playing = false
+   end
 end
 
 function add_machine()
