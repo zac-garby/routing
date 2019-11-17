@@ -1,5 +1,5 @@
-PACKET_UPDATE_TIME = 0.2 -- seconds
-PACKET_SEND_TIME = 1.0
+PACKET_UPDATE_TIME = 1.0 -- seconds
+PACKET_SEND_TIME = 1.5
 
 function love.load()
    machine_textures = {
@@ -20,6 +20,7 @@ function love.load()
 
    timer = 0
    send_timer = 0
+   second_timer = 0
 
    math.randomseed(os.time())
 
@@ -100,7 +101,7 @@ function love.draw()
       if not p.dead then
 	 local pos = packet_position(p)
 
-	 if p.progress == 0 or p.progress == edge_weight(p.edge.from, p.edge.to) then
+	 if p.progress == 0 then
 	    love.graphics.draw(packet_texture, pos.x - 4, pos.y - 4, -0.2, 2, 2)
 	 else
 	    love.graphics.draw(packet_texture, pos.x, pos.y)
@@ -154,6 +155,7 @@ end
 function update()
    timer = timer + love.timer.getAverageDelta()
    send_timer = send_timer + love.timer.getAverageDelta()
+   second_timer = second_timer + love.timer.getAverageDelta()
 
    if timer > PACKET_UPDATE_TIME then
       timer = 0
@@ -163,6 +165,11 @@ function update()
    if send_timer > PACKET_SEND_TIME then
       send_timer = 0
       spawn_packet()
+   end
+
+   if second_timer > 1 then
+      second_timer = 0
+      drops_per_second = 0
    end
    
    if love.keyboard.isDown("left") then cam.x = cam.x - 2 end
@@ -398,16 +405,22 @@ function packet_position(packet)
    local x_step = math.floor((to.x - from.x) / weight)
    local y_step = math.floor((to.y - from.y) / weight)
 
+   local interp = timer / PACKET_UPDATE_TIME - 1
+   if packet.progress == 0 then
+      interp = 0
+   end
+
    return {
-      x = from.x + 24 + x_step * packet.progress - 6,
-      y = from.y + 24 + y_step * packet.progress - 6,
+      x = from.x + 24 + x_step * (interp + packet.progress) - 6,
+      y = from.y + 24 + y_step * (interp + packet.progress) - 6,
    }
 end
 
 function update_packets()
    for i, packet in ipairs(packets) do
       if not packet.dead then	 
-	 if packet.progress == edge_weight(packet.edge.from, packet.edge.to) then
+	 if packet.progress >= edge_weight(packet.edge.from, packet.edge.to) then
+	    packet.progress = 0
 	    if packet.edge.to == packet.destination then
 	       packet.dead = true
 	    else
@@ -421,9 +434,9 @@ function update_packets()
 		  packet.edge.to = next
 	       end
 	    end
+	 else
+	    packet.progress = packet.progress + 1
 	 end
-
-	 packet.progress = packet.progress + 1
       end
    end
 
@@ -446,7 +459,7 @@ function remove_dead_packets()
    end
 end
 
-function next_hop(current, destination)
+ function next_hop(current, destination)
    for _, route in ipairs(routes) do
       if route.from == current and route.to == destination then
 	 return route.via
